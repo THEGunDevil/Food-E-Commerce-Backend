@@ -190,10 +190,10 @@ func main() {
 	// Cart
 	// -----------------------
 	cart := r.Group("/cart")
-	cart.POST("/add-items", handlers.CreateCartItemsHandler)
+	cart.POST("/add-items/:user_id", handlers.CreateCartItemsHandler)
+	cart.GET("/items/:user_id", handlers.ListCartItemsHandler)
 	cart.Use(middleware.AuthMiddleware())
 	{
-		cart.GET("/items", handlers.ListCartItemsHandler)
 		cart.PATCH("/items/:cart_item_id", handlers.UpdateCartItemHandler)
 		cart.DELETE("/items/:cart_item_id", handlers.RemoveCartItemHandler)
 		cart.DELETE("/users/:user_id", handlers.ClearCartHandler)

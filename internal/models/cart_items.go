@@ -17,7 +17,6 @@ type CartItems struct {
 	UpdatedAt           time.Time `json:"updated_at"`
 }
 
-
 type CartItemsReq struct {
 	MenuItemID          uuid.UUID `json:"menu_item_id" validate:"required"`
 	Quantity            int       `json:"quantity" validate:"required, gte=1,lte=10"`

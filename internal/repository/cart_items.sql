@@ -9,21 +9,18 @@ INSERT INTO cart_items (
     $1, $2, $3, $4, $5
 )
 RETURNING *;
-
--- name: GetCartItem :one
+-- name: GetCartItemByIdentifierAndMenuItem :one
 SELECT *
 FROM cart_items
-WHERE menu_item_id = $1;
--- name: GetCartItemByUserAndMenuItem :one
-SELECT *
-FROM cart_items
-WHERE user_id = $1
+WHERE (user_id = $1 OR session_id = $1)
   AND menu_item_id = $2;
--- name: ListCartItemsByUser :many
+
+-- name: ListCartItemsByIdentifier :many
 SELECT *
 FROM cart_items
-WHERE user_id = $1
+WHERE user_id = $1 OR session_id = $1
 ORDER BY created_at ASC;
+
 -- name: UpdateCartItem :one
 UPDATE cart_items
 SET

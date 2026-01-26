@@ -20,54 +20,10 @@ func CreateCartItemsHandler(c *gin.Context) {
 		services.HandleValidationError(c, err)
 		return
 	}
-
-	if req.MenuItemID == uuid.Nil {
-		c.JSON(http.StatusBadRequest, models.APIResponse{
-			Success: false,
-			Message: "menu item id is required",
-		})
-		return
-	}
-
-	_, err := db.Q.GetCartItem(c, services.UUIDToPGType(req.MenuItemID))
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			// Item does not exist → proceed to add
-		} else {
-			// Unexpected DB error
-			c.JSON(http.StatusInternalServerError, models.APIResponse{
-				Success: false,
-				Message: "internal server error",
-			})
-			return
-		}
-	} else {
-		// Item exists → return conflict
-		c.JSON(http.StatusConflict, models.APIResponse{
-			Success: false,
-			Message: "item already exists",
-		})
-		return
-	}
-
-	if req.Quantity < 1 || req.Quantity > 3 {
-		c.JSON(http.StatusBadRequest, models.APIResponse{
-			Success: false,
-			Message: "quantity must be between 1 and 3",
-		})
-		return
-	}
-
-	var specialInstructions string
-	if req.SpecialInstructions != nil {
-		specialInstructions = *req.SpecialInstructions
-	}
-
 	var userUUID pgtype.UUID
 	var sessionUUID pgtype.UUID
 
-	userIDStr := c.GetString("user_id")
+	userIDStr := c.Param("user_id")
 
 	if userIDStr != "" {
 		// Authenticated user
@@ -111,6 +67,51 @@ func CreateCartItemsHandler(c *gin.Context) {
 			Valid: true,
 		}
 	}
+	if req.MenuItemID == uuid.Nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "menu item id is required",
+		})
+		return
+	}
+
+	_, err := db.Q.GetCartItemByIdentifierAndMenuItem(c, gen.GetCartItemByIdentifierAndMenuItemParams{
+		UserID: services.UUIDToPGType(userUUID.Bytes),
+		MenuItemID: services.UUIDToPGType(req.MenuItemID),
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Item does not exist → proceed to add
+		} else {
+			// Unexpected DB error
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "internal server error",
+			})
+			return
+		}
+	} else {
+		// Item exists → return conflict
+		c.JSON(http.StatusConflict, models.APIResponse{
+			Success: false,
+			Message: "item already exists",
+		})
+		return
+	}
+
+	if req.Quantity < 1 || req.Quantity > 3 {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "quantity must be between 1 and 3",
+		})
+		return
+	}
+
+	var specialInstructions string
+	if req.SpecialInstructions != nil {
+		specialInstructions = *req.SpecialInstructions
+	}
 
 	params := gen.AddCartItemParams{
 		UserID:              userUUID,    // NULL or UUID
@@ -144,10 +145,10 @@ func ListCartItemsHandler(c *gin.Context) {
 	}
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.APIResponse{Success: false, Message: "user_id is required"})
+		c.JSON(http.StatusBadRequest, models.APIResponse{Success: false, Message: "there was an error parsing user_id"})
 		return
 	}
-	cartItems, err := db.Q.ListCartItemsByUser(c, services.UUIDToPGType(userID))
+	cartItems, err := db.Q.ListCartItemsByIdentifier(c, services.UUIDToPGType(userID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Message: "failed to list cart items"})
 		return

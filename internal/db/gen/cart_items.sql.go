@@ -64,42 +64,20 @@ func (q *Queries) ClearCartByUser(ctx context.Context, userID pgtype.UUID) error
 	return err
 }
 
-const getCartItem = `-- name: GetCartItem :one
+const getCartItemByIdentifierAndMenuItem = `-- name: GetCartItemByIdentifierAndMenuItem :one
 SELECT id, user_id, menu_item_id, quantity, special_instructions, created_at, updated_at, session_id
 FROM cart_items
-WHERE menu_item_id = $1
-`
-
-func (q *Queries) GetCartItem(ctx context.Context, menuItemID pgtype.UUID) (CartItem, error) {
-	row := q.db.QueryRow(ctx, getCartItem, menuItemID)
-	var i CartItem
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.MenuItemID,
-		&i.Quantity,
-		&i.SpecialInstructions,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.SessionID,
-	)
-	return i, err
-}
-
-const getCartItemByUserAndMenuItem = `-- name: GetCartItemByUserAndMenuItem :one
-SELECT id, user_id, menu_item_id, quantity, special_instructions, created_at, updated_at, session_id
-FROM cart_items
-WHERE user_id = $1
+WHERE (user_id = $1 OR session_id = $1)
   AND menu_item_id = $2
 `
 
-type GetCartItemByUserAndMenuItemParams struct {
+type GetCartItemByIdentifierAndMenuItemParams struct {
 	UserID     pgtype.UUID `json:"user_id"`
 	MenuItemID pgtype.UUID `json:"menu_item_id"`
 }
 
-func (q *Queries) GetCartItemByUserAndMenuItem(ctx context.Context, arg GetCartItemByUserAndMenuItemParams) (CartItem, error) {
-	row := q.db.QueryRow(ctx, getCartItemByUserAndMenuItem, arg.UserID, arg.MenuItemID)
+func (q *Queries) GetCartItemByIdentifierAndMenuItem(ctx context.Context, arg GetCartItemByIdentifierAndMenuItemParams) (CartItem, error) {
+	row := q.db.QueryRow(ctx, getCartItemByIdentifierAndMenuItem, arg.UserID, arg.MenuItemID)
 	var i CartItem
 	err := row.Scan(
 		&i.ID,
@@ -114,15 +92,15 @@ func (q *Queries) GetCartItemByUserAndMenuItem(ctx context.Context, arg GetCartI
 	return i, err
 }
 
-const listCartItemsByUser = `-- name: ListCartItemsByUser :many
+const listCartItemsByIdentifier = `-- name: ListCartItemsByIdentifier :many
 SELECT id, user_id, menu_item_id, quantity, special_instructions, created_at, updated_at, session_id
 FROM cart_items
-WHERE user_id = $1
+WHERE user_id = $1 OR session_id = $1
 ORDER BY created_at ASC
 `
 
-func (q *Queries) ListCartItemsByUser(ctx context.Context, userID pgtype.UUID) ([]CartItem, error) {
-	rows, err := q.db.Query(ctx, listCartItemsByUser, userID)
+func (q *Queries) ListCartItemsByIdentifier(ctx context.Context, userID pgtype.UUID) ([]CartItem, error) {
+	rows, err := q.db.Query(ctx, listCartItemsByIdentifier, userID)
 	if err != nil {
 		return nil, err
 	}
