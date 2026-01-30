@@ -8,9 +8,11 @@ import (
 
 type UserRole string
 type APIResponse struct {
-	Page       int         `json:"page"`
-	Limit      int         `json:"limit"`
-	TotalPages int         `json:"total_pages"`
+	Page       int         `json:"page,omitempty"`
+	Limit      int         `json:"limit,omitempty"`
+	TotalPages int         `json:"total_pages,omitempty"`
+	TotalItems int         `json:"total_items,omitempty"`
+	SubTotal   float64     `json:"sub_total"`
 	Success    bool        `json:"success"`
 	Message    string      `json:"message"`
 	Error      string      `json:"error,omitempty"`

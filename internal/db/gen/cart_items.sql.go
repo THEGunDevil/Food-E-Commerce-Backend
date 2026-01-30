@@ -13,20 +13,18 @@ import (
 
 const addCartItem = `-- name: AddCartItem :one
 INSERT INTO cart_items (
-    user_id,
-    session_id,
+    cart_id,
     menu_item_id,
     quantity,
     special_instructions
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4
 )
-RETURNING id, user_id, menu_item_id, quantity, special_instructions, created_at, updated_at, session_id
+RETURNING id, cart_id, menu_item_id, quantity, special_instructions, created_at, updated_at
 `
 
 type AddCartItemParams struct {
-	UserID              pgtype.UUID `json:"user_id"`
-	SessionID           pgtype.UUID `json:"session_id"`
+	CartID              pgtype.UUID `json:"cart_id"`
 	MenuItemID          pgtype.UUID `json:"menu_item_id"`
 	Quantity            int32       `json:"quantity"`
 	SpecialInstructions pgtype.Text `json:"special_instructions"`
@@ -34,8 +32,7 @@ type AddCartItemParams struct {
 
 func (q *Queries) AddCartItem(ctx context.Context, arg AddCartItemParams) (CartItem, error) {
 	row := q.db.QueryRow(ctx, addCartItem,
-		arg.UserID,
-		arg.SessionID,
+		arg.CartID,
 		arg.MenuItemID,
 		arg.Quantity,
 		arg.SpecialInstructions,
@@ -43,64 +40,105 @@ func (q *Queries) AddCartItem(ctx context.Context, arg AddCartItemParams) (CartI
 	var i CartItem
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
+		&i.CartID,
 		&i.MenuItemID,
 		&i.Quantity,
 		&i.SpecialInstructions,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SessionID,
 	)
 	return i, err
 }
 
-const clearCartByUser = `-- name: ClearCartByUser :exec
+const clearCart = `-- name: ClearCart :exec
 DELETE FROM cart_items
-WHERE user_id = $1
+WHERE cart_id = $1
 `
 
-func (q *Queries) ClearCartByUser(ctx context.Context, userID pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, clearCartByUser, userID)
+func (q *Queries) ClearCart(ctx context.Context, cartID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, clearCart, cartID)
 	return err
 }
 
-const getCartItemByIdentifierAndMenuItem = `-- name: GetCartItemByIdentifierAndMenuItem :one
-SELECT id, user_id, menu_item_id, quantity, special_instructions, created_at, updated_at, session_id
-FROM cart_items
-WHERE (user_id = $1 OR session_id = $1)
-  AND menu_item_id = $2
+const getCartBySessionID = `-- name: GetCartBySessionID :one
+SELECT id, user_id, session_id, status, created_at, updated_at
+FROM carts
+WHERE session_id = $1
 `
 
-type GetCartItemByIdentifierAndMenuItemParams struct {
-	UserID     pgtype.UUID `json:"user_id"`
-	MenuItemID pgtype.UUID `json:"menu_item_id"`
-}
-
-func (q *Queries) GetCartItemByIdentifierAndMenuItem(ctx context.Context, arg GetCartItemByIdentifierAndMenuItemParams) (CartItem, error) {
-	row := q.db.QueryRow(ctx, getCartItemByIdentifierAndMenuItem, arg.UserID, arg.MenuItemID)
-	var i CartItem
+func (q *Queries) GetCartBySessionID(ctx context.Context, sessionID pgtype.UUID) (Cart, error) {
+	row := q.db.QueryRow(ctx, getCartBySessionID, sessionID)
+	var i Cart
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
+		&i.SessionID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCartItemByCartAndMenuItem = `-- name: GetCartItemByCartAndMenuItem :one
+SELECT id, cart_id, menu_item_id, quantity, special_instructions, created_at, updated_at
+FROM cart_items
+WHERE cart_id = $1
+  AND menu_item_id = $2
+`
+
+type GetCartItemByCartAndMenuItemParams struct {
+	CartID     pgtype.UUID `json:"cart_id"`
+	MenuItemID pgtype.UUID `json:"menu_item_id"`
+}
+
+func (q *Queries) GetCartItemByCartAndMenuItem(ctx context.Context, arg GetCartItemByCartAndMenuItemParams) (CartItem, error) {
+	row := q.db.QueryRow(ctx, getCartItemByCartAndMenuItem, arg.CartID, arg.MenuItemID)
+	var i CartItem
+	err := row.Scan(
+		&i.ID,
+		&i.CartID,
 		&i.MenuItemID,
 		&i.Quantity,
 		&i.SpecialInstructions,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SessionID,
 	)
 	return i, err
 }
 
-const listCartItemsByIdentifier = `-- name: ListCartItemsByIdentifier :many
-SELECT id, user_id, menu_item_id, quantity, special_instructions, created_at, updated_at, session_id
+const getSubTotal = `-- name: GetSubTotal :one
+SELECT 
+    COALESCE(
+        SUM(
+            CASE 
+                WHEN mi.discount_price > 0 THEN mi.discount_price 
+                ELSE mi.price 
+            END * c.quantity
+        ), 
+        0
+    )::DECIMAL(10, 2) AS subtotal
+FROM cart_items c
+JOIN menu_items mi ON c.menu_item_id = mi.id
+WHERE c.cart_id = $1
+`
+
+func (q *Queries) GetSubTotal(ctx context.Context, cartID pgtype.UUID) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, getSubTotal, cartID)
+	var subtotal pgtype.Numeric
+	err := row.Scan(&subtotal)
+	return subtotal, err
+}
+
+const listCartItemsByCart = `-- name: ListCartItemsByCart :many
+SELECT id, cart_id, menu_item_id, quantity, special_instructions, created_at, updated_at
 FROM cart_items
-WHERE user_id = $1 OR session_id = $1
+WHERE cart_id = $1
 ORDER BY created_at ASC
 `
 
-func (q *Queries) ListCartItemsByIdentifier(ctx context.Context, userID pgtype.UUID) ([]CartItem, error) {
-	rows, err := q.db.Query(ctx, listCartItemsByIdentifier, userID)
+func (q *Queries) ListCartItemsByCart(ctx context.Context, cartID pgtype.UUID) ([]CartItem, error) {
+	rows, err := q.db.Query(ctx, listCartItemsByCart, cartID)
 	if err != nil {
 		return nil, err
 	}
@@ -110,13 +148,12 @@ func (q *Queries) ListCartItemsByIdentifier(ctx context.Context, userID pgtype.U
 		var i CartItem
 		if err := rows.Scan(
 			&i.ID,
-			&i.UserID,
+			&i.CartID,
 			&i.MenuItemID,
 			&i.Quantity,
 			&i.SpecialInstructions,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.SessionID,
 		); err != nil {
 			return nil, err
 		}
@@ -145,7 +182,7 @@ SET
     special_instructions = $3,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, user_id, menu_item_id, quantity, special_instructions, created_at, updated_at, session_id
+RETURNING id, cart_id, menu_item_id, quantity, special_instructions, created_at, updated_at
 `
 
 type UpdateCartItemParams struct {
@@ -159,13 +196,12 @@ func (q *Queries) UpdateCartItem(ctx context.Context, arg UpdateCartItemParams) 
 	var i CartItem
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
+		&i.CartID,
 		&i.MenuItemID,
 		&i.Quantity,
 		&i.SpecialInstructions,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SessionID,
 	)
 	return i, err
 }

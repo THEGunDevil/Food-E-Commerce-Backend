@@ -230,21 +230,6 @@ CREATE TABLE promotions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
--- ------------------------------
--- CART
--- ------------------------------
-CREATE TABLE cart_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    menu_item_id UUID REFERENCES menu_items(id) ON DELETE CASCADE,
-    quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
-    special_instructions TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, menu_item_id)
-);
-
 -- ------------------------------
 -- INVENTORY
 -- ------------------------------

@@ -85,8 +85,8 @@ func ToMenuResponse(
 		Name:          m.Name,
 		Slug:          m.Slug,
 		Description:   m.Description.String,
-		Price:         numericToFloat(m.Price),
-		DiscountPrice: numericToPtr(m.DiscountPrice),
+		Price:         NumericToFloat(m.Price),
+		DiscountPrice: NumericToPtr(m.DiscountPrice),
 		Images:        ToMenuItemImages(images),
 		Ingredients:   m.Ingredients,
 		Tags:          m.Tags,
@@ -98,7 +98,7 @@ func ToMenuResponse(
 		StockQuantity: int(m.StockQuantity.Int32),
 		MinStockAlert: int(m.MinStockAlert.Int32),
 		TotalOrders:   int(m.TotalOrders.Int32),
-		AverageRating: numericToFloat(m.AverageRating),
+		AverageRating: NumericToFloat(m.AverageRating),
 		DisplayOrder:  int(m.DisplayOrder.Int32),
 		CreatedAt:     m.CreatedAt.Time,
 		UpdatedAt:     m.UpdatedAt.Time,
@@ -115,8 +115,8 @@ func ToMenuListResponseWithCategoryName(
 		Name:          m.Name,
 		Slug:          m.Slug,
 		Description:   m.Description.String,
-		Price:         numericToFloat(m.Price),
-		DiscountPrice: numericToPtr(m.DiscountPrice),
+		Price:         NumericToFloat(m.Price),
+		DiscountPrice: NumericToPtr(m.DiscountPrice),
 		Images:        ToMenuItemImages(images),
 		Ingredients:   m.Ingredients,
 		Tags:          m.Tags,
@@ -128,7 +128,7 @@ func ToMenuListResponseWithCategoryName(
 		StockQuantity: int(m.StockQuantity.Int32),
 		MinStockAlert: int(m.MinStockAlert.Int32),
 		TotalOrders:   int(m.TotalOrders.Int32),
-		AverageRating: numericToFloat(m.AverageRating),
+		AverageRating: NumericToFloat(m.AverageRating),
 		DisplayOrder:  int(m.DisplayOrder.Int32),
 		CreatedAt:     m.CreatedAt.Time,
 		UpdatedAt:     m.UpdatedAt.Time,
@@ -148,16 +148,16 @@ func ToCategoryResponse(c gen.Category) models.Category {
 		UpdatedAt:        c.UpdatedAt.Time,
 	}
 }
-func ToCartItemResponse(c gen.CartItem) models.CartItems {
-	return models.CartItems{
-		ID:                  c.ID.Bytes,
-		UserID:              c.UserID.Bytes,
-		MenuItemID:          c.MenuItemID.Bytes,
-		SessionID:           c.SessionID.Bytes,
-		Quantity:            int(c.Quantity),
-		SpecialInstructions: c.SpecialInstructions.String,
-		CreatedAt:           c.CreatedAt.Time,
-		UpdatedAt:           c.UpdatedAt.Time,
+func ToCartItemResponse(c gen.GetMenuItemByIDRow, i gen.CartItem, mis []gen.MenuItemImage) models.CartItemResponse {
+	return models.CartItemResponse{
+		CartItemID:          i.CartID.Bytes,
+		MenuItemID:          PgtypeToUUID(c.ID),
+		Name:                c.Name,
+		Price:               NumericToFloat(c.Price),
+		OriginalPrice:       NumericToFloat(c.DiscountPrice),
+		Quantity:            int(i.Quantity),
+		Image:               ToMenuItemImages(mis),
+		SpecialInstructions: i.SpecialInstructions.String,
 	}
 }
 func ToDeliveryZoneResponse(d gen.DeliveryZone) models.DeliveryZone {

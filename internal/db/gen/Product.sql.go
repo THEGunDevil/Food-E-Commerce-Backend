@@ -506,11 +506,12 @@ func (q *Queries) GetMenuItem(ctx context.Context, id pgtype.UUID) (MenuItem, er
 
 const getMenuItemByID = `-- name: GetMenuItemByID :one
 SELECT
-    menu_items.id, menu_items.category_id, menu_items.name, menu_items.slug, menu_items.description, menu_items.price, menu_items.discount_price, menu_items.ingredients, menu_items.tags, menu_items.prep_time, menu_items.spicy_level, menu_items.is_vegetarian, menu_items.is_special, menu_items.is_available, menu_items.stock_quantity, menu_items.min_stock_alert, menu_items.total_orders, menu_items.average_rating, menu_items.display_order, menu_items.created_at, menu_items.updated_at,
-    categories.name AS CategoryName
-FROM menu_items
-JOIN categories ON menu_items.category_id = categories.id
-WHERE menu_items.id = $1
+    mi.id, mi.category_id, mi.name, mi.slug, mi.description, mi.price, mi.discount_price, mi.ingredients, mi.tags, mi.prep_time, mi.spicy_level, mi.is_vegetarian, mi.is_special, mi.is_available, mi.stock_quantity, mi.min_stock_alert, mi.total_orders, mi.average_rating, mi.display_order, mi.created_at, mi.updated_at,
+    c.name AS CategoryName
+FROM menu_items mi
+JOIN categories c
+    ON mi.category_id = c.id
+WHERE mi.id = $1
 `
 
 type GetMenuItemByIDRow struct {

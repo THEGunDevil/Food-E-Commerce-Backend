@@ -70,7 +70,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
 			return
 		}
-		log.Printf("✅ User fetched: %s %s\n", user.FullName)
+		log.Printf("✅ User fetched: %s\n", user.FullName)
 
 		tokenVersion, _ := claims["token_version"].(float64)
 		if int32(tokenVersion) != user.TokenVersion {

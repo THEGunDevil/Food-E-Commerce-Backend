@@ -178,7 +178,7 @@ func main() {
 	{
 		categories.POST("",middleware.AdminOnly(),handlers.CreateCategoryHandler)
 		categories.GET("", handlers.ListCategoriesHandler)
-		categories.GET("/active", handlers.ListActiveCategoriesHandler)
+		categories.GET("/active", middleware.SessionMiddleware(),handlers.ListActiveCategoriesHandler)
 		categories.GET("/:category_id", handlers.GetCategoryByIDHandler)
 		categories.PATCH("/:category_id", handlers.UpdateCategoryHandler)
 		categories.PATCH("/:category_id/display-order", handlers.UpdateCategoryDisplayOrderHandler)
@@ -189,15 +189,20 @@ func main() {
 	// -----------------------
 	// Cart
 	// -----------------------
-	cart := r.Group("/cart")
-	cart.POST("/add-items/:user_id", handlers.CreateCartItemsHandler)
-	cart.GET("/items/:user_id", handlers.ListCartItemsHandler)
-	cart.Use(middleware.AuthMiddleware())
+cart := r.Group("/cart")
+cart.Use(middleware.SessionMiddleware()) // sets cart_id
+{
+	cart.POST("/add-items", handlers.CreateCartItemsHandler)
+	cart.GET("/items", handlers.ListCartItemsHandler)
+
+	cart.Use(middleware.AuthMiddleware()) // logged-in only
 	{
 		cart.PATCH("/items/:cart_item_id", handlers.UpdateCartItemHandler)
 		cart.DELETE("/items/:cart_item_id", handlers.RemoveCartItemHandler)
 		cart.DELETE("/users/:user_id", handlers.ClearCartHandler)
 	}
+}
+
 
 	// -----------------------
 	// Promotions (Admin)

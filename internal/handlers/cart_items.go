@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func CreateCartItemsHandler(c *gin.Context) {
@@ -20,53 +19,8 @@ func CreateCartItemsHandler(c *gin.Context) {
 		services.HandleValidationError(c, err)
 		return
 	}
-	var userUUID pgtype.UUID
-	var sessionUUID pgtype.UUID
 
-	userIDStr := c.Param("user_id")
-
-	if userIDStr != "" {
-		// Authenticated user
-		uid, err := uuid.Parse(userIDStr)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, models.APIResponse{
-				Success: false,
-				Message: "invalid user id",
-			})
-			return
-		}
-
-		userUUID = pgtype.UUID{
-			Bytes: uid,
-			Valid: true,
-		}
-		sessionUUID = pgtype.UUID{Valid: false}
-
-	} else {
-		sid := services.GetOrCreateSessionID(c)
-		if sid == "" {
-			c.JSON(http.StatusInternalServerError, models.APIResponse{
-				Success: false,
-				Message: "failed to create session",
-			})
-			return
-		}
-
-		parsedSID, err := uuid.Parse(sid)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, models.APIResponse{
-				Success: false,
-				Message: "invalid session id",
-			})
-			return
-		}
-
-		userUUID = pgtype.UUID{Valid: false}
-		sessionUUID = pgtype.UUID{
-			Bytes: parsedSID,
-			Valid: true,
-		}
-	}
+	// 1️⃣ Validate menu item
 	if req.MenuItemID == uuid.Nil {
 		c.JSON(http.StatusBadRequest, models.APIResponse{
 			Success: false,
@@ -75,31 +29,25 @@ func CreateCartItemsHandler(c *gin.Context) {
 		return
 	}
 
-	_, err := db.Q.GetCartItemByIdentifierAndMenuItem(c, gen.GetCartItemByIdentifierAndMenuItemParams{
-		UserID: services.UUIDToPGType(userUUID.Bytes),
-		MenuItemID: services.UUIDToPGType(req.MenuItemID),
-	})
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			// Item does not exist → proceed to add
-		} else {
-			// Unexpected DB error
-			c.JSON(http.StatusInternalServerError, models.APIResponse{
-				Success: false,
-				Message: "internal server error",
-			})
-			return
-		}
-	} else {
-		// Item exists → return conflict
-		c.JSON(http.StatusConflict, models.APIResponse{
+	// 2️⃣ Get cart_id from middleware
+	cartIDValue, exists := c.Get("cart_id")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
-			Message: "item already exists",
+			Message: "cart not initialized",
+		})
+		return
+	}
+	cartID, ok := cartIDValue.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "invalid cart id type",
 		})
 		return
 	}
 
+	// 3️⃣ Quantity validation
 	if req.Quantity < 1 || req.Quantity > 3 {
 		c.JSON(http.StatusBadRequest, models.APIResponse{
 			Success: false,
@@ -108,61 +56,145 @@ func CreateCartItemsHandler(c *gin.Context) {
 		return
 	}
 
-	var specialInstructions string
-	if req.SpecialInstructions != nil {
-		specialInstructions = *req.SpecialInstructions
-	}
+	// 4️⃣ Check if item already exists
+	_, err := db.Q.GetCartItemByCartAndMenuItem(
+		c,
+		gen.GetCartItemByCartAndMenuItemParams{
+			CartID:     services.UUIDToPGType(cartID),
+			MenuItemID: services.UUIDToPGType(req.MenuItemID),
+		},
+	)
 
-	params := gen.AddCartItemParams{
-		UserID:              userUUID,    // NULL or UUID
-		SessionID:           sessionUUID, // NULL or UUID
-		MenuItemID:          pgtype.UUID{Bytes: req.MenuItemID, Valid: true},
-		Quantity:            int32(req.Quantity),
-		SpecialInstructions: services.StringToPGText(specialInstructions),
-	}
-
-	res, err := db.Q.AddCartItem(c, params)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.APIResponse{
+	if err == nil {
+		c.JSON(http.StatusConflict, models.APIResponse{
 			Success: false,
-			Message: err.Error(),
+			Message: "item already exists in cart",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, models.APIResponse{
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "failed to check cart item",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 5️⃣ Prepare insert params
+	var instructions string
+	if req.SpecialInstructions != nil {
+		instructions = *req.SpecialInstructions
+	}
+
+	params := gen.AddCartItemParams{
+		CartID:              services.UUIDToPGType(cartID),
+		MenuItemID:          services.UUIDToPGType(req.MenuItemID),
+		Quantity:            int32(req.Quantity),
+		SpecialInstructions: services.StringToPGText(instructions),
+	}
+
+	// 6️⃣ Insert cart item
+	_, err = db.Q.AddCartItem(c, params)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "failed to add item to cart",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 7️⃣ Success
+	c.JSON(http.StatusCreated, models.APIResponse{
 		Success: true,
 		Message: "cart item added successfully",
-		Data:    services.ToCartItemResponse(res),
 	})
 }
 
 func ListCartItemsHandler(c *gin.Context) {
-	userIDStr := c.Param("user_id")
-	if userIDStr == "" {
-		c.JSON(http.StatusBadRequest, models.APIResponse{Success: false, Message: "user_id is required"})
+	cartIDValue, exists := c.Get("cart_id")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "cart not found",
+		})
 		return
 	}
-	userID, err := uuid.Parse(userIDStr)
+
+	cartID, ok := cartIDValue.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "invalid cart id",
+		})
+		return
+	}
+
+	cartItems, err := db.Q.ListCartItemsByCart(
+		c,
+		services.UUIDToPGType(cartID),
+	)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.APIResponse{Success: false, Message: "there was an error parsing user_id"})
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "failed to list cart items",
+		})
 		return
 	}
-	cartItems, err := db.Q.ListCartItemsByIdentifier(c, services.UUIDToPGType(userID))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Message: "failed to list cart items"})
-		return
-	}
-	res := make([]models.CartItems, 0, len(cartItems))
+
+	res := make([]models.CartItemResponse, 0, len(cartItems))
+
 	for _, cartItem := range cartItems {
-		res = append(res, services.ToCartItemResponse(cartItem))
+		menuItem, err := db.Q.GetMenuItemByID(c, cartItem.MenuItemID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				c.JSON(http.StatusNotFound, models.APIResponse{
+					Success: false,
+					Message: "menu item not found",
+				})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "error fetching menu item",
+			})
+			return
+		}
+
+		menuImages, err := db.Q.ListMenuItemImages(c, menuItem.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "error fetching menu images",
+			})
+			return
+		}
+
+		res = append(res,
+			services.ToCartItemResponse(menuItem, cartItem, menuImages),
+		)
 	}
+
+	subTotal, err := db.Q.GetSubTotal(c, services.UUIDToPGType(cartID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "there was an error calculating subtotal",
+			Error:   err.Error(),
+		})
+	}
+	subTotalFloat, _ := subTotal.Float64Value()
 	c.JSON(http.StatusOK, models.APIResponse{
-		Success: true,
-		Message: "cart items listed successfully",
-		Data:    res,
+		Success:    true,
+		Message:    "Cart items listed successfully",
+		TotalItems: len(res),
+		SubTotal:   subTotalFloat.Float64,
+		Data:       res,
 	})
 }
+
 func UpdateCartItemHandler(c *gin.Context) {
 	cartItemIDStr := c.Param("cart_item_id")
 	if cartItemIDStr == "" {
@@ -194,7 +226,7 @@ func UpdateCartItemHandler(c *gin.Context) {
 		SpecialInstructions: services.StringToPGText(*specialInstructions),
 		ID:                  services.UUIDToPGType(cartItemID),
 	}
-	res, err := db.Q.UpdateCartItem(c, params)
+	_, err = db.Q.UpdateCartItem(c, params)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, models.APIResponse{
@@ -209,7 +241,7 @@ func UpdateCartItemHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, models.APIResponse{
 		Success: true,
 		Message: "cart item quantity updated successfully",
-		Data:    services.ToCartItemResponse(res),
+		// Data:    services.ToCartItemResponse(res),
 	})
 }
 func RemoveCartItemHandler(c *gin.Context) {
@@ -238,27 +270,38 @@ func RemoveCartItemHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, models.APIResponse{Success: true, Message: "cart item removed successfully"})
 }
 func ClearCartHandler(c *gin.Context) {
-	userIDStr := c.Param("user_id")
-	if userIDStr == "" {
-		c.JSON(http.StatusBadRequest, models.APIResponse{Success: false, Message: "user id is required"})
+	// 1️⃣ Get cart_id from context (set by SessionMiddleware)
+	cartIDValue, exists := c.Get("cart_id")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "cart not found",
+		})
 		return
 	}
-	userID, err := uuid.Parse(userIDStr)
+
+	cartID, ok := cartIDValue.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "invalid cart id",
+		})
+		return
+	}
+
+	// 2️⃣ Delete all items from this cart
+	err := db.Q.ClearCart(c, services.UUIDToPGType(cartID))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.APIResponse{Success: false, Message: "user id is required"})
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "failed to clear cart",
+		})
 		return
 	}
-	err = db.Q.ClearCartByUser(c, services.UUIDToPGType(userID))
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			c.JSON(http.StatusNotFound, models.APIResponse{
-				Success: false,
-				Message: "cart not found",
-			})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Message: "failed to clear cart"})
-		return
-	}
-	c.JSON(http.StatusOK, models.APIResponse{Success: true, Message: "cart cleared successfully"})
+
+	// 3️⃣ Respond
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: "cart cleared successfully",
+	})
 }

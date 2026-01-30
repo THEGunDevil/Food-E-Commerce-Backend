@@ -19,15 +19,23 @@ type AnalyticsDaily struct {
 	CreatedAt         pgtype.Timestamp `json:"created_at"`
 }
 
+type Cart struct {
+	ID        pgtype.UUID      `json:"id"`
+	UserID    pgtype.UUID      `json:"user_id"`
+	SessionID pgtype.UUID      `json:"session_id"`
+	Status    string           `json:"status"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+}
+
 type CartItem struct {
 	ID                  pgtype.UUID      `json:"id"`
-	UserID              pgtype.UUID      `json:"user_id"`
+	CartID              pgtype.UUID      `json:"cart_id"`
 	MenuItemID          pgtype.UUID      `json:"menu_item_id"`
 	Quantity            int32            `json:"quantity"`
 	SpecialInstructions pgtype.Text      `json:"special_instructions"`
 	CreatedAt           pgtype.Timestamp `json:"created_at"`
 	UpdatedAt           pgtype.Timestamp `json:"updated_at"`
-	SessionID           pgtype.UUID      `json:"session_id"`
 }
 
 type Category struct {

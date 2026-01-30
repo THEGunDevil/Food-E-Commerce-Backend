@@ -63,11 +63,14 @@ WHERE id = $1 LIMIT 1;
 
 -- name: GetMenuItemByID :one
 SELECT
-    menu_items.*,
-    categories.name AS CategoryName
-FROM menu_items
-JOIN categories ON menu_items.category_id = categories.id
-WHERE menu_items.id = $1;
+    mi.*,
+    c.name AS CategoryName
+FROM menu_items mi
+JOIN categories c
+    ON mi.category_id = c.id
+WHERE mi.id = $1;
+
+
 
 -- name: GetMenuItemBySlug :one
 SELECT * FROM menu_items 

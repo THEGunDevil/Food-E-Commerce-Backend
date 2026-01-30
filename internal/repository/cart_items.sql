@@ -1,24 +1,39 @@
 -- name: AddCartItem :one
 INSERT INTO cart_items (
-    user_id,
-    session_id,
+    cart_id,
     menu_item_id,
     quantity,
     special_instructions
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4
 )
 RETURNING *;
--- name: GetCartItemByIdentifierAndMenuItem :one
+
+-- name: GetSubTotal :one
+SELECT 
+    COALESCE(
+        SUM(
+            CASE 
+                WHEN mi.discount_price > 0 THEN mi.discount_price 
+                ELSE mi.price 
+            END * c.quantity
+        ), 
+        0
+    )::DECIMAL(10, 2) AS subtotal
+FROM cart_items c
+JOIN menu_items mi ON c.menu_item_id = mi.id
+WHERE c.cart_id = $1;
+
+-- name: GetCartItemByCartAndMenuItem :one
 SELECT *
 FROM cart_items
-WHERE (user_id = $1 OR session_id = $1)
+WHERE cart_id = $1
   AND menu_item_id = $2;
 
--- name: ListCartItemsByIdentifier :many
+-- name: ListCartItemsByCart :many
 SELECT *
 FROM cart_items
-WHERE user_id = $1 OR session_id = $1
+WHERE cart_id = $1
 ORDER BY created_at ASC;
 
 -- name: UpdateCartItem :one
@@ -29,9 +44,16 @@ SET
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING *;
+
 -- name: RemoveCartItem :exec
 DELETE FROM cart_items
 WHERE id = $1;
--- name: ClearCartByUser :exec
+
+-- name: ClearCart :exec
 DELETE FROM cart_items
-WHERE user_id = $1;
+WHERE cart_id = $1;
+
+-- name: GetCartBySessionID :one
+SELECT *
+FROM carts
+WHERE session_id = $1;

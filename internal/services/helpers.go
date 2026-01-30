@@ -112,7 +112,7 @@ func GetTimePtr(timestamp pgtype.Timestamp) *time.Time {
 	return nil
 }
 
-func numericToPtr(n pgtype.Numeric) *float64 {
+func NumericToPtr(n pgtype.Numeric) *float64 {
 	if !n.Valid {
 		return nil
 	}
@@ -120,7 +120,7 @@ func numericToPtr(n pgtype.Numeric) *float64 {
 	val := f.Float64
 	return &val
 }
-func numericToFloat(n pgtype.Numeric) float64 {
+func NumericToFloat(n pgtype.Numeric) float64 {
 	if !n.Valid {
 		return 0.0
 	}
@@ -160,17 +160,4 @@ func HandleValidationError(c *gin.Context, err error) {
 		Message: "invalid form data",
 		Error:   errMsg,
 	})
-}
-func GetOrCreateSessionID(c *gin.Context) string {
-	if cookie, err := c.Cookie("session_id"); err == nil && cookie != "" {
-		return cookie
-	}
-	
-	// Create new session ID
-	sessionID := uuid.New().String()
-	
-	// Set cookie (30 days expiry for guest cart)
-	c.SetCookie("session_id", sessionID, 30*24*60*60, "/", "", false, true)
-	
-	return sessionID
 }
