@@ -25,7 +25,7 @@ CREATE TABLE cart_items (
 
     quantity INTEGER NOT NULL
         DEFAULT 1
-        CHECK (quantity > 0),
+        CHECK (quantity >= 1 AND quantity <= 10),
 
     special_instructions TEXT,
 
@@ -34,3 +34,4 @@ CREATE TABLE cart_items (
 
     UNIQUE (cart_id, menu_item_id)
 );
+

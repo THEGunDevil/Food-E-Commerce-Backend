@@ -102,7 +102,7 @@ func main() {
 	{
 		reviews.POST("/:menu_id", handlers.CreateReviewHandler)
 		reviews.GET("/menu/:menu_id", handlers.GetMenuItemReviewsByMenuItemIDHandler)
-		reviews.GET("/review/:review_id", handlers.GetReviewByIDHandler)		
+		reviews.GET("/review/:review_id", handlers.GetReviewByIDHandler)
 		reviews.GET("/users/:user_id", handlers.ListReviewsByUserHandler)
 		// reviews.PATCH("/:review_id", handlers.UpdateReviewByIDHandler)
 		reviews.DELETE("/:review_id", handlers.DeleteReviewByIDHandler)
@@ -176,9 +176,9 @@ func main() {
 	// -----------------------
 	categories := r.Group("/categories")
 	{
-		categories.POST("",middleware.AdminOnly(),handlers.CreateCategoryHandler)
+		categories.POST("", middleware.AdminOnly(), handlers.CreateCategoryHandler)
 		categories.GET("", handlers.ListCategoriesHandler)
-		categories.GET("/active", middleware.SessionMiddleware(),handlers.ListActiveCategoriesHandler)
+		categories.GET("/active", middleware.SessionMiddleware(), handlers.ListActiveCategoriesHandler)
 		categories.GET("/:category_id", handlers.GetCategoryByIDHandler)
 		categories.PATCH("/:category_id", handlers.UpdateCategoryHandler)
 		categories.PATCH("/:category_id/display-order", handlers.UpdateCategoryDisplayOrderHandler)
@@ -189,20 +189,15 @@ func main() {
 	// -----------------------
 	// Cart
 	// -----------------------
-cart := r.Group("/cart")
-cart.Use(middleware.SessionMiddleware()) // sets cart_id
-{
-	cart.POST("/add-items", handlers.CreateCartItemsHandler)
-	cart.GET("/items", handlers.ListCartItemsHandler)
-
-	cart.Use(middleware.AuthMiddleware()) // logged-in only
+	cart := r.Group("/cart")
+	cart.Use(middleware.SessionMiddleware()) // sets cart_id
 	{
-		cart.PATCH("/items/:cart_item_id", handlers.UpdateCartItemHandler)
-		cart.DELETE("/items/:cart_item_id", handlers.RemoveCartItemHandler)
-		cart.DELETE("/users/:user_id", handlers.ClearCartHandler)
+		cart.POST("/add-items", handlers.CreateCartItemsHandler)
+		cart.GET("/items", handlers.ListCartItemsHandler)
+		cart.PATCH("/update-quantity/:menu_item_id", handlers.UpdateCartItemHandler)
+		cart.DELETE("/remove-item/:menu_item_id", handlers.RemoveCartItemHandler)
+		// cart.DELETE("/users/:user_id", handlers.ClearCartHandler)
 	}
-}
-
 
 	// -----------------------
 	// Promotions (Admin)

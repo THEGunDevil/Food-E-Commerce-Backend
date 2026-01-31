@@ -167,32 +167,37 @@ func (q *Queries) ListCartItemsByCart(ctx context.Context, cartID pgtype.UUID) (
 
 const removeCartItem = `-- name: RemoveCartItem :exec
 DELETE FROM cart_items
-WHERE id = $1
+WHERE menu_item_id = $1
+  AND cart_id = $2
 `
 
-func (q *Queries) RemoveCartItem(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, removeCartItem, id)
+type RemoveCartItemParams struct {
+	MenuItemID pgtype.UUID `json:"menu_item_id"`
+	CartID     pgtype.UUID `json:"cart_id"`
+}
+
+func (q *Queries) RemoveCartItem(ctx context.Context, arg RemoveCartItemParams) error {
+	_, err := q.db.Exec(ctx, removeCartItem, arg.MenuItemID, arg.CartID)
 	return err
 }
 
 const updateCartItem = `-- name: UpdateCartItem :one
 UPDATE cart_items
 SET
-    quantity = $2,
-    special_instructions = $3,
+    quantity = $3,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
+WHERE menu_item_id = $1 AND cart_id = $2
 RETURNING id, cart_id, menu_item_id, quantity, special_instructions, created_at, updated_at
 `
 
 type UpdateCartItemParams struct {
-	ID                  pgtype.UUID `json:"id"`
-	Quantity            int32       `json:"quantity"`
-	SpecialInstructions pgtype.Text `json:"special_instructions"`
+	MenuItemID pgtype.UUID `json:"menu_item_id"`
+	CartID     pgtype.UUID `json:"cart_id"`
+	Quantity   int32       `json:"quantity"`
 }
 
 func (q *Queries) UpdateCartItem(ctx context.Context, arg UpdateCartItemParams) (CartItem, error) {
-	row := q.db.QueryRow(ctx, updateCartItem, arg.ID, arg.Quantity, arg.SpecialInstructions)
+	row := q.db.QueryRow(ctx, updateCartItem, arg.MenuItemID, arg.CartID, arg.Quantity)
 	var i CartItem
 	err := row.Scan(
 		&i.ID,

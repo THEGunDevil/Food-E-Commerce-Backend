@@ -39,15 +39,16 @@ ORDER BY created_at ASC;
 -- name: UpdateCartItem :one
 UPDATE cart_items
 SET
-    quantity = $2,
-    special_instructions = $3,
+    quantity = $3,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
+WHERE menu_item_id = $1 AND cart_id = $2
 RETURNING *;
 
 -- name: RemoveCartItem :exec
 DELETE FROM cart_items
-WHERE id = $1;
+WHERE menu_item_id = $1
+  AND cart_id = $2;
+
 
 -- name: ClearCart :exec
 DELETE FROM cart_items

@@ -134,7 +134,10 @@ func TimeToTimestamp(t time.Time) pgtype.Timestamp {
 		Valid: !t.IsZero(),
 	}
 }
-
+// func ToTwoDecimal(f float64) float64{
+// 	s := fmt.Sprintf("%.2f", f)
+// 	return StringToFloat(s)
+// }
 func PgTypeBool(b *bool) pgtype.Bool {
 	if b != nil {
 		return pgtype.Bool{Bool: *b, Valid: true}

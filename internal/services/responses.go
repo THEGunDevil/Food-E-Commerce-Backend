@@ -1,11 +1,14 @@
 package services
 
 import (
+	"math"
+	"math/big"
 	"time"
 
 	gen "github.com/THEGunDevil/Food-E-Commerce-Backend.git/internal/db/gen"
 	"github.com/THEGunDevil/Food-E-Commerce-Backend.git/internal/models"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func ToUserResponse(user gen.User) models.UserResponse {
@@ -149,12 +152,29 @@ func ToCategoryResponse(c gen.Category) models.Category {
 	}
 }
 func ToCartItemResponse(c gen.GetMenuItemByIDRow, i gen.CartItem, mis []gen.MenuItemImage) models.CartItemResponse {
+	var Price pgtype.Numeric
+	if (!c.DiscountPrice.Valid) || (c.DiscountPrice == pgtype.Numeric{
+		Int:   big.NewInt(0),
+		Exp:   0,
+		Valid: true,
+	}) {
+		Price = c.Price
+	} else {
+		Price = c.DiscountPrice
+	}
+	var lineSubtotal float64
+	lineSubtotal = NumericToFloat(c.Price) * float64(i.Quantity)
+	lineSubtotal = math.Round(lineSubtotal*100) / 100
+
 	return models.CartItemResponse{
-		CartItemID:          i.CartID.Bytes,
+		CartID:              i.CartID.Bytes,
 		MenuItemID:          PgtypeToUUID(c.ID),
 		Name:                c.Name,
-		Price:               NumericToFloat(c.Price),
-		OriginalPrice:       NumericToFloat(c.DiscountPrice),
+		CategoryName:        c.Categoryname,
+		OriginalPrice:       NumericToFloat(c.Price),
+		DiscountedPrice:     NumericToFloat(c.DiscountPrice),
+		Price:               NumericToFloat(Price),
+		LineSubtotal:        lineSubtotal,
 		Quantity:            int(i.Quantity),
 		Image:               ToMenuItemImages(mis),
 		SpecialInstructions: i.SpecialInstructions.String,
